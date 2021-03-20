@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <!-- <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet"> -->
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body>
+  <div id="app">
+    <div class="row">
+      <div class="col s12 m7" id="pdf-output-container">
+        <div id="pdf-output"></div>
+      </div>
+      <form class="col s12 m4">
+        <h4>Générateur d'attestation</h4>
+        <h6>Version : Mars 2021</h6>
+        <br>
+        <div class="row">
+          <div class="input-field col s12">
+            <input id="name" placeholder=" " type="text" class="validate">
+            <label for="name">Nom</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="birthDate" placeholder=" " type="text" class="validate">
+            <label for="birthDate">Date de naissance</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="birthPlace" placeholder=" " type="text" class="validate">
+            <label for="birthPlace">Lieu de naissance</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12">
+            <textarea id="address" placeholder=" " class="materialize-textarea"></textarea>
+            <label for="address">Adresse</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12">
+            <input id="place" placeholder=" " type="text" class="validate">
+            <label for="place">Fait à (lieu)</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="date" placeholder=" " type="text" class="validate">
+            <label for="date">Fait le (date)</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="time" placeholder=" " type="text" class="validate">
+            <label for="time">Fait à (heure)</label>
+          </div>
+        </div>
+        <div id="radio-container">
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 signature-label">
+            <label>Signature</label>
+          </div>
+          <div class="signature-container col s12">
+            <canvas id="signature-canvas"></canvas>
+            <div class="signature-actions">
+              <button id="signature-clear" class="grey waves-effect waves-light btn btn-small">
+                Effacer
+              </button>
+              <button id="signature-undo" class="grey waves-effect waves-light btn btn-small">
+                Revenir en arrière
+              </button>
+            </div>
+          </div>          
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 2em">
+          <button id="submit" class="waves-effect waves-light btn">
+            Générer
+          </button>
+        </div>
+          
+      </form>
+    </div>
+    <div id="pdf-output-mobile-container"></div>
+  </div>
+  <style>
+    #pdf-output {
+      height: 100vh;
+      border: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 100%;
+    }
+    .signature-label {
+      margin: 0;
+      height: 47px;
+      margin-top: -3px;
+    }
+    #signature-canvas {
+      border: 1px solid gray;
+      width: 100%;
+      border-radius: 5px;
+    }
+    #signature-clear, #signature-undo {
+      transform: scale(0.75);
+    }
+
+    @media (max-width: 900px) {
+      #signature-canvas {
+        height: 150px;
+      }
+      #pdf-output {
+        display: none;
+      }
+    }
+  </style>
+  <script src="https://unpkg.com/pdf-lib@1.16.0/dist/pdf-lib.min.js"></script>
+  <script src="signature_pad.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js"></script>
+  
+
+  <script>
+
+    const reasons = [
+      {
+        pos: [0, 60, 523],
+        name: "Activité professionnelle, enseignement et formation",
+        description: "Déplacements entre le domicile et le lieu d’exercice de l’activité professionnelle ou le lieu d’enseignement et de formation, déplacements professionnels ne pouvant être différés"
+      },
+      {
+        pos: [0, 60, 461],
+        name: "Consultations et soins",
+        description: "Déplacements pour des consultations, examens, actes de prévention (dont vaccination) et soins ne pouvant être assurés à distance ou pour l’achat de produits de santé"
+      },
+      {
+        pos: [0, 60, 384],
+        name: "Motif familial impérieux, personnes vulnérables ou précaires ou gardes d’enfants",
+        description: "Déplacements pour motif familial impérieux, pour l’assistance aux personnes vulnérables ou précaires ou pour la garde d’enfants"
+      },
+      {
+        pos: [0, 60, 322],
+        name: "Situation de handicap",
+        description: "Déplacements des personnes en situation de handicap et de leur accompagnant"
+      },
+      {
+        pos: [0, 60, 274],
+        name: "Convocation judiciaire ou administrative",
+        description: "Déplacements pour répondre à une convocation judiciaire ou administrative, déplacements pour se rendre chez un professionnel du droit, pour un acte ou une démarche qui ne peuvent être réalisés à distance"
+      },
+      {
+        pos: [0, 60, 143],
+        name: "Mission d’intérêt général",
+        description: "Déplacements pour participer à des missions d’intérêt général sur demande de l’autorité administrative"
+      },
+      {
+        pos: [0, 60, 197],
+        name: "Déplacements de transit et longue distance",
+        description: "Déplacements liés à des transits ferroviaires, aériens ou en bus pour des déplacements de longues distances"
+      },
+      {
+        pos: [0, 60, 88],
+        name: "Animaux de compagnie",
+        description: "Déplacements brefs dans un rayon maximal d'un kilomètre autour du domicile pour les besoins des animaux de compagnie"
+      },
+      {
+        pos: [1, 60, 582],
+        name: "Achats professionnels et livraisons à domicile",
+        description: "Déplacements pour effectuer des achats de fournitures nécessaires à l'activité professionnelle, ou pour des livraisons à domicile"
+      },
+      {
+        pos: [1, 60, 529],
+        name: "Achats",
+        description: "Déplacements pour effectuer des achats de première nécessité ou des retraits de commandes"
+      },
+      {
+        pos: [1, 60, 480],
+        name: "Déménagement",
+        description: "Déplacements liés à un déménagement résultant d'un changement de domicile et déplacements indispensables à l'acquisition ou à la location d’une résidence principale, insusceptibles d'être différés"
+      },
+      {
+        pos: [1, 60, 410],
+        name: "Activités physiques et promenade",
+        description: "Déplacements dans un rayon maximal de dix kilomètres autour du domicile, liés soit à l'activité physique individuelle des personnes, à l'exclusion de toute pratique sportive collective, soit à la promenade avec les seules personnes regroupées dans un même domicile"
+      },
+      {
+        pos: [1, 60, 328],
+        name: "Démarches administratives ou juridiques",
+        description: "Déplacements pour se rendre dans un service public pour un acte ou une démarche qui ne peuvent être réalisés à distance"
+      },
+      {
+        pos: [1, 60, 275],
+        name: "Culte",
+        description: "Déplacements à destination ou en provenance d'un lieu de culte"
+      },
+      {
+        pos: [ 1, 60, 240],
+        name: "Participation à des rassemblements autorisés",
+        description: "Participation à des rassemblements, réunions ou activités sur la voie publique ou dans un lieu ouvert au public qui ne sont pas interdits en application de l'article 3"
+      }
+    ]
+    const placeholderData = {
+      name: "Jean Dupont",
+      birthDate: "10 decembre 1978",
+      birthPlace: "Vernon (Eure)",
+      address: [
+        "4, allée des hortensia",
+        "27517 Saint-Aubin-sur-Gaillon"
+      ],
+      place: "Saint-Aubin-sur-Gaillon",
+      date: "20 mars 2021",
+      time: "11 h 21 m"
+    }
+
+
+    window.onload = async () => {
+      // let resizePdfOutput = () => {
+      //   if (document.body.scrollWidth < 800) {
+      //     // move pdf output
+      //     let desktopContainer = document.getElementById('pdf-output-container')
+      //     let htmlPdfOutput = desktopContainer.innerHTML
+      //     document.getElementById('pdf-output-mobile-container').innerHTML = htmlPdfOutput
+
+      //     desktopContainer.innerHTML = ''
+      //   }
+      // }
+      // resizePdfOutput()
+
+      // default signature
+      const url = '/placeholder_signature.png'
+      const arrayBuffer = await fetch(url).then(res => res.arrayBuffer())
+      createPdf(
+        placeholderData,
+        [reasons[11]],
+        arrayBuffer
+      )
+      const radio = document.getElementById('radio-container')
+      let radioContent = ''
+      reasons.forEach((reason, i) => {
+        radioContent += `
+          <p>
+            <label>
+              <input class="with-gap" name="reason-group" type="radio" value="${i}" ${i == 0 ? 'checked' : ''} />
+              <span>
+                <b>${reason.name}</b>
+              </span>
+              <br>
+              <span>
+                ${reason.description}
+              </span>
+            </label>
+          </p>`
+      })
+      radio.innerHTML = radioContent
+      let fieldsRaw = [
+        'name',
+        'birthDate',
+        'birthPlace',
+        'address',
+        'place',
+        'date',
+        'time'
+      ]
+      let now = new Date()
+      let padded = (v) => {
+        v = v.toString()
+        if (v.length == 1) {
+          return '0' + v
+        }
+        return v
+      }
+      let placeholderValues = {
+        date: + padded(now.getDate()) + '/' + padded(now.getMonth()) + '/' + now.getFullYear(),
+        time: now.getHours() + ' h ' + now.getMinutes() + ' m'
+      }
+      let fields = Object.fromEntries(fieldsRaw.map(e => {
+        let instance =  document.getElementById(e)
+        instance.setAttribute('placeholder', placeholderData[e])
+        if (placeholderValues[e] != null) {
+          instance.setAttribute('value', placeholderValues[e])
+        }
+        return [e, instance]
+      }))
+
+      let signatureCanvas = document.getElementById('signature-canvas')
+      let signaturePad = new SignaturePad(signatureCanvas, {
+        minWidth: 0.2,
+        maxWidth: 1.5,
+      })
+
+      function resizeSignatureCanvas() {
+        var ratio =  Math.max(window.devicePixelRatio || 1, 1);
+        signatureCanvas.width = signatureCanvas.offsetWidth * ratio;
+        signatureCanvas.height = signatureCanvas.offsetHeight * ratio;
+        signatureCanvas.getContext("2d").scale(ratio, ratio);
+        signaturePad.clear();
+      }
+      resizeSignatureCanvas()
+      window.onresize = () => {
+        resizeSignatureCanvas()
+      }
+
+      const signatureClear = document.getElementById('signature-clear')
+      signatureClear.addEventListener('click', (event) => {
+        event.preventDefault()
+        signaturePad.clear()
+      })
+
+      const signatureUndo = document.getElementById('signature-undo')
+      signatureUndo.addEventListener('click', (event) => {
+        event.preventDefault()
+        let data = signaturePad.toData()
+        if (data) {
+          data.pop() // remove the last dot or line
+          signaturePad.fromData(data)
+        }
+      })
+
+      const submitBtn = document.getElementById('submit')
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault()
+        let signatureDataUrl = signaturePad.toDataURL()
+
+        let reasonIndex = parseInt(document.querySelector('input[name="reason-group"]:checked').value)
+        createPdf(
+          Object.fromEntries(fieldsRaw.map(fieldName => {
+            let val = fields[fieldName].value
+            if (fieldName == 'address') {
+              val = val.split('\n')
+            }
+            return [fieldName, val]
+          })),
+          [reasons[reasonIndex]],
+          signatureDataUrl,
+          true
+        )
+      })
+    }
+
+    async function createPdf(dataToInput, reasons, signatureImageRaw, doDownload = false) {
+      const url = '/19-03-2021-attestation-de-deplacement-derogatoire_edited.pdf'
+      const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer())
+
+      // let xSlider = document.getElementById('xSlider')
+      // let ySlider = document.getElementById('ySlider')
+      // let x = 60
+      // let y = 0
+      // xSlider.oninput = () => {
+      //   x = parseFloat(xSlider.value)
+      //   drawCoord()
+      // }
+      // ySlider.oninput = () => {
+      //   y = parseFloat(ySlider.value)
+      //   drawCoord()
+      // }
+      // let coord = document.getElementById('coord')
+      // function drawCoord() {
+      //   coord.innerText = "x: " + x + " ; y: " + y
+      // }
+      // let submitBtn = document.getElementById('submitBtn')
+      // submitBtn.onclick = () => {
+      //   draw()
+      // }
+      draw()
+
+      async function draw() {
+        const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes)
+        const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold)
+
+        const pages = pdfDoc.getPages()
+        const firstPage = pages[0]
+        const secondPage = pages[1]
+        const {width, height} = firstPage.getSize()
+
+        let defaultFontSize = 13
+        let font = helveticaFont
+        let color = PDFLib.rgb(44/255, 62/255, 80/255)
+
+        /*let dataToInput = {
+          name: "Didier Raoult",
+          birthDate: "18 octobre 1969",
+          birthPlace: "Marseille",
+          address: [
+            "Institut des photos", "6, place de hydroxyde de fer", "28746 Aix Métropole"
+          ],
+          place: "Aubevoye",
+          date: "24 mars 2021",
+          time: "15 h 15 mins"
+        }*/
+        let texts = [
+          [0, 111, 666, dataToInput.name],
+          [0, 111, 653, dataToInput.birthDate],
+          [0, 347, 653, dataToInput.birthPlace],
+          [0, 126, 641, dataToInput.address[0]],
+          [0, 126, 627, dataToInput.address[1] == null ? '' : dataToInput.address[1]],
+          [0, 126, 613, dataToInput.address[2] == null ? '' : dataToInput.address[2]],
+          [1, 98, 149, dataToInput.place],
+          [1, 81, 133, dataToInput.date],
+          [1, 230, 133, dataToInput.time]
+        ]
+
+        reasons.forEach(reason => {
+          texts.push(reason.pos.concat("X"))
+        })
+        texts.forEach(raw => {
+          pages[raw[0]].drawText(raw[3], {
+            x: raw[1],
+            y: raw[2],
+            size: defaultFontSize,
+            font,
+            color
+          })
+        })
+
+        // finally embed signature
+        const signatureImage = await pdfDoc.embedPng(signatureImageRaw)
+        
+        const pngDims = signatureImage.scale(0.5)
+
+        secondPage.drawImage(signatureImage, {
+          x: 180,
+          y: 25,
+          width: pngDims.width,
+          height: pngDims.height,
+        })
+
+        // pdfDoc.removePage(0)
+        const b64 = await pdfDoc.saveAsBase64({dataUri: true});
+        if (doDownload && document.body.scrollWidth < 800) {
+          download('attestation.pdf', b64)
+        }
+        else {
+          PDFObject.embed(b64, "#pdf-output");
+        }
+      }
+    }
+
+    function download(file, dataUrl) {
+        //creating an invisible element 
+        var element = document.createElement('a')
+        element.setAttribute('href', dataUrl)
+        element.setAttribute('download', file)
+        document.body.appendChild(element)
+        element.click()
+        document.body.removeChild(element)
+      } 
+  </script>
+</body>
+</html>
